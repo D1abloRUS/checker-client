@@ -99,10 +99,10 @@ func (c *Client) Activate(host string) bool {
 	return errBool
 }
 
-func GetTasks(host string) ([]Task, bool) {
+func GetTasks(host string, id int) ([]Task, bool) {
 	var t []Task
 
-	r, err := http.Get(fmt.Sprintf("https://%s/api/v1/gettask/1", host))
+	r, err := http.Get(fmt.Sprintf("https://%s/api/v1/gettask/%d", host, id))
 	errBool := CheckError(err)
 
 	defer r.Body.Close()
@@ -176,7 +176,7 @@ func main() {
 
 	u := Client{Hash: *hash}
 	u.Activate(*host)        //Activate - return 0 as success
-	tL, _ := GetTasks(*host) //GetTask - return 0 as success
+	tL, _ := GetTasks(*host, u.Id) //GetTask - return 0 as success
 
 	//	for i := range tL {				//debug
 	//		fmt.Printf("Id:%d  Interval:%d  Target:%s  Status:%t\n", tL[i].Id, tL[i].Interval, tL[i].Target, tL[i].Status)
@@ -220,6 +220,8 @@ func main() {
 		if fsec != 59 {
 			fsec++
 		} else {
+			tmptL, _ := GetTasks(*host, u.Id)
+			tL = tmptL
 			fsec = 0
 		}
 	}
