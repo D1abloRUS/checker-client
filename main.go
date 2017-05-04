@@ -99,27 +99,27 @@ func (c *Client) Activate(host string) bool {
 	return errBool
 }
 
-func GetTasks(host string, id int) ([]Task, bool) {
+func GetTasks(host string, id int) ([]Task) {
 	var t []Task
 
 	r, err := http.Get(fmt.Sprintf("https://%s/api/v1/gettask/%d", host, id))
-	errBool := CheckError(err)
+	CheckError(err)
 
 	defer r.Body.Close()
 
 	res, err := ioutil.ReadAll(r.Body)
-	errBool = CheckError(err)
+	CheckError(err)
 
 	//	fmt.Printf("json in epta: %s\n", res)		//debug
 
 	err = json.Unmarshal(res, &t)
-	errBool = CheckError(err)
+	CheckError(err)
 
 	//	for i := range t {				//debug
 	//		fmt.Printf("%d :%d : %d : %s : %t\n", i, t[i].Id, t[i].Interval, t[i].Target, t[i].Status)
 	//	}
 
-	return t, errBool
+	return t
 }
 
 func SetStat(info string) (Stat, bool) {
@@ -176,7 +176,7 @@ func main() {
 
 	u := Client{Hash: *hash}
 	u.Activate(*host)        //Activate - return 0 as success
-	tL, _ := GetTasks(*host, u.Id) //GetTask - return 0 as success
+	tL := GetTasks(*host, u.Id) //GetTask - return 0 as success
 
 	//	for i := range tL {				//debug
 	//		fmt.Printf("Id:%d  Interval:%d  Target:%s  Status:%t\n", tL[i].Id, tL[i].Interval, tL[i].Target, tL[i].Status)
@@ -220,8 +220,7 @@ func main() {
 		if fsec != 59 {
 			fsec++
 		} else {
-			tmptL, _ := GetTasks(*host, u.Id)
-			tL = tmptL
+			tL = GetTasks(*host, u.Id)
 			fsec = 0
 		}
 	}
