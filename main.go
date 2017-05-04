@@ -122,20 +122,20 @@ func GetTasks(host string, id int) ([]Task) {
 	return t
 }
 
-func SetStat(info string) (Stat, bool) {
+func SetStat(info string) (Stat) {
 
 	str := strings.Split(info, (" "))
 
 	id, err := strconv.Atoi(str[0])
-	errBool := CheckError(err)
+	CheckError(err)
 
 	st, err := strconv.ParseBool(str[1])
-	errBool = CheckError(err)
+	CheckError(err)
 	s := Stat{Id: id, Status: st}
 
 	//	fmt.Printf("json out epta: %s\n", b)		//debug
 
-	return s, errBool
+	return s
 }
 
 func SendStat(s []Stat, host string) bool {
@@ -176,7 +176,7 @@ func main() {
 
 	u := Client{Hash: *hash}
 	u.Activate(*host)        //Activate - return 0 as success
-	tL := GetTasks(*host, u.Id) //GetTask - return 0 as success
+	tL := GetTasks(*host, u.Id) //GetTask
 
 	//	for i := range tL {				//debug
 	//		fmt.Printf("Id:%d  Interval:%d  Target:%s  Status:%t\n", tL[i].Id, tL[i].Interval, tL[i].Target, tL[i].Status)
@@ -204,8 +204,7 @@ func main() {
 			select {
 			case res := <-cn:
 				//				fmt.Printf("Result: %s\n", res) 	//debug
-				tstat, _ := SetStat(res) //подготовка, 0 success
-				fstat[j] = tstat
+				fstat[j] = SetStat(res) //подготовка
 			default:
 				//				fmt.Printf("Channel is empty\n")	//debug
 			}
