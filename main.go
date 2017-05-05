@@ -99,7 +99,7 @@ func (c *Client) Activate(host string) bool {
 	return errBool
 }
 
-func GetTasks(host string, id int) ([]Task) {
+func GetTasks(host string, id int) []Task {
 	var t []Task
 
 	r, err := http.Get(fmt.Sprintf("https://%s/api/v1/gettask/%d", host, id))
@@ -122,7 +122,7 @@ func GetTasks(host string, id int) ([]Task) {
 	return t
 }
 
-func SetStat(info string) (Stat) {
+func SetStat(info string) Stat {
 
 	str := strings.Split(info, (" "))
 
@@ -175,7 +175,7 @@ func main() {
 	}
 
 	u := Client{Hash: *hash}
-	u.Activate(*host)        //Activate - return 0 as success
+	u.Activate(*host)           //Activate - return 0 as success
 	tL := GetTasks(*host, u.Id) //GetTask
 
 	//	for i := range tL {				//debug
