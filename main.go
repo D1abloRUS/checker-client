@@ -23,18 +23,18 @@ type connection struct {
 
 type Client struct {
 	Hash string `json:"hash"`
-	Id   int    `json:"id"`
+	ID   int    `json:"id"`
 }
 
 type Task struct {
-	Id       int    `json:"id"`
+	ID       int    `json:"id"`
 	Target   string `json:"target"`
 	Interval int    `json:"interval"`
 	Status   bool   `json:"status"`
 }
 
 type Stat struct {
-	Id     int  `json:"id"`
+	ID     int  `json:"id"`
 	Status bool `json:"status"`
 }
 
@@ -54,7 +54,9 @@ func (c *connection) Conn() (net.Conn, bool) {
 
 func (t *Task) Check(cn chan string) {
 	//func (t *Task) check(cn chan []byte) {
-
+	var (
+		tmpStatus string
+	)
 	c := connection{
 		protocol: "tcp", // захардкожено потому что http
 		address:  t.Target,
@@ -63,18 +65,28 @@ func (t *Task) Check(cn chan string) {
 	conn, err := c.Conn()
 	if err == false {
 		conn.Close()
-		t.Status = true
+		tmpStatus = true
+		if t.Status != tmpStatus {
+			t.Status = tmpStatus
+		} else if t.Status == tmpStatus {
+			tmpStatus = "no-change"
+		}
 	} else {
 		time.Sleep(250 * time.Millisecond)
 		conn, errr := c.Conn()
 		if errr != false {
-			t.Status = false
+			tmpStatus = false
+			if t.Status != tmpStatus {
+				t.Status = tmpStatus
+			} else if t.Status == tmpStatus {
+				tmpStatus = "no-change"
+			}
 		} else {
 			conn.Close()
 		}
 	}
 
-	cn <- fmt.Sprintf("%d %t", t.Id, t.Status)
+	cn <- fmt.Sprintf("%d %s", t.ID, t.Status)
 }
 
 func (c *Client) Activate(host string) bool {
@@ -116,7 +128,7 @@ func GetTasks(host string, id int) []Task {
 	CheckError(err)
 
 	//	for i := range t {				//debug
-	//		fmt.Printf("%d :%d : %d : %s : %t\n", i, t[i].Id, t[i].Interval, t[i].Target, t[i].Status)
+	//		fmt.Printf("%d :%d : %d : %s : %t\n", i, t[i].ID, t[i].Interval, t[i].Target, t[i].Status)
 	//	}
 
 	return t
@@ -131,7 +143,7 @@ func SetStat(info string) Stat {
 
 	st, err := strconv.ParseBool(str[1])
 	CheckError(err)
-	s := Stat{Id: id, Status: st}
+	s := Stat{ID: id, Status: st}
 
 	//	fmt.Printf("json out epta: %s\n", b)		//debug
 
@@ -158,11 +170,11 @@ func SendStat(s []Stat, host string) bool {
 
 func main() {
 	var (
-		help     = flag.Bool("help", false, "use -help to see this information")
-		host     = flag.String("s", "", "input check server dns-name or address")
-		hash     = flag.String("h", "", "input user hash id")
-		fsec int = 0 //main loop timer
-		ssec int = 0 //task counter
+		help = flag.Bool("help", false, "use -help to see this information")
+		host = flag.String("s", "", "input check server dns-name or address")
+		hash = flag.String("h", "", "input user hash id")
+		fsec int //main loop timer
+		ssec int //task counter
 	)
 	flag.Parse()
 
@@ -176,10 +188,10 @@ func main() {
 
 	u := Client{Hash: *hash}
 	u.Activate(*host)           //Activate - return 0 as success
-	tL := GetTasks(*host, u.Id) //GetTask
+	tL := GetTasks(*host, u.ID) //GetTask
 
 	//	for i := range tL {				//debug
-	//		fmt.Printf("Id:%d  Interval:%d  Target:%s  Status:%t\n", tL[i].Id, tL[i].Interval, tL[i].Target, tL[i].Status)
+	//		fmt.Printf("Id:%d  Interval:%d  Target:%s  Status:%t\n", tL[i].ID, tL[i].Interval, tL[i].Target, tL[i].Status)
 	//	}
 
 	cn := make(chan string, 10) //максимальная очередь задач
@@ -219,7 +231,7 @@ func main() {
 		if fsec != 59 {
 			fsec++
 		} else {
-			tL = GetTasks(*host, u.Id)
+			tL = GetTasks(*host, u.ID)
 			fsec = 0
 		}
 	}
