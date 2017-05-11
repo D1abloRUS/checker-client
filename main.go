@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	//	"log"
-	//	"io"
 	"os"
 )
 
@@ -53,47 +51,37 @@ func (c *connection) Conn() (net.Conn, bool) {
 }
 
 func (t *Task) Check(cn chan string) {
-	//func (t *Task) check(cn chan []byte) {
 	var (
-		tmpStatus string
+		tmpStatus bool
 	)
+
 	c := connection{
-		protocol: "tcp", // захардкожено потому что http
+		protocol: "tcp", // захардкожено потому что http(s)
 		address:  t.Target,
 	}
 
 	conn, err := c.Conn()
-	if err == false {
+	if err == false { //no errors
 		conn.Close()
 		tmpStatus = true
-		if t.Status != tmpStatus {
-			t.Status = tmpStatus
-		} else if t.Status == tmpStatus {
-			tmpStatus = "no-change"
-		}
 	} else {
-		time.Sleep(250 * time.Millisecond)
-		conn, errr := c.Conn()
-		if errr != false {
+		time.Sleep(250 * time.Millisecond) //for wrong falure check
+		conn, err := c.Conn()
+		if err != false {
 			tmpStatus = false
-			if t.Status != tmpStatus {
-				t.Status = tmpStatus
-			} else if t.Status == tmpStatus {
-				tmpStatus = "no-change"
-			}
 		} else {
 			conn.Close()
 		}
 	}
-
-	cn <- fmt.Sprintf("%d %s", t.ID, t.Status)
+	fmt.Printf("Check: ID:%d, Status:%t\n", t.ID, tmpStatus)
+	cn <- fmt.Sprintf("%d %t", t.ID, tmpStatus)
 }
 
 func (c *Client) Activate(host string) bool {
 	b := new(bytes.Buffer)
 	err := json.NewEncoder(b).Encode(c)
 	errBool := CheckError(err)
-	//	fmt.Printf("json in epta: %s\n", b)		//debugg
+	fmt.Printf("json in epta: %s\n", b)		//debugg
 
 	//Тут хардкод url api
 	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/activate", host), "application/json; charset=utf-8", b)
@@ -106,8 +94,8 @@ func (c *Client) Activate(host string) bool {
 
 	err = json.NewDecoder(res.Body).Decode(&c)
 	errBool = CheckError(err)
-	//	json.NewEncoder(b).Encode(c)			//debug
-	//	fmt.Printf("json out epta: %s\n", b)		//debug
+	json.NewEncoder(b).Encode(c)			//debug
+	fmt.Printf("json out epta: %s\n", b)		//debug
 	return errBool
 }
 
@@ -122,45 +110,30 @@ func GetTasks(host string, id int) []Task {
 	res, err := ioutil.ReadAll(r.Body)
 	CheckError(err)
 
-	//	fmt.Printf("json in epta: %s\n", res)		//debug
+	fmt.Printf("Getting task: %s\n", res)		//debug
 
 	err = json.Unmarshal(res, &t)
 	CheckError(err)
 
-	//	for i := range t {				//debug
-	//		fmt.Printf("%d :%d : %d : %s : %t\n", i, t[i].ID, t[i].Interval, t[i].Target, t[i].Status)
-	//	}
+	for i := range t {				//debug
+		fmt.Printf("%d :%d : %d : %s : %t\n", i, t[i].ID, t[i].Interval, t[i].Target, t[i].Status)
+	}
 
 	return t
 }
 
-func SetStat(info string) Stat {
-
-	str := strings.Split(info, (" "))
-
-	id, err := strconv.Atoi(str[0])
-	CheckError(err)
-
-	st, err := strconv.ParseBool(str[1])
-	CheckError(err)
-	s := Stat{ID: id, Status: st}
-
-	//	fmt.Printf("json out epta: %s\n", b)		//debug
-
-	return s
-}
-
 func SendStat(s []Stat, host string) bool {
+//func SendStat(s map[int]Stat, host string) bool {
 	fjson := new(bytes.Buffer)
 	err := json.NewEncoder(fjson).Encode(s)
 	errBool := CheckError(err)
-	//	fmt.Printf("json for send epta: %s\n", fjson)	//debug
+	fmt.Printf("SendStat json: %v\n", fjson)	//debug
 
 	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/statusupdate", host), "application/json; charset=utf-8", fjson)
 	errBool = CheckError(err)
 	if err == nil {
 		defer res.Body.Close()
-		//		fmt.Printf("Status is push\n")		//debug
+		fmt.Printf("Status is push\n")		//debug
 	} else {
 		os.Exit(1)
 	}
@@ -173,9 +146,12 @@ func main() {
 		help = flag.Bool("help", false, "use -help to see this information")
 		host = flag.String("s", "", "input check server dns-name or address")
 		hash = flag.String("h", "", "input user hash id")
-		fsec int //main loop timer
-		ssec int //task counter
+		fsec int 			//main loop timer
+		ssec int 			//gorutine counter
+		tsec int 			//answer counter
+		tL	[]Task
 	)
+
 	flag.Parse()
 
 	if len(os.Args) == 1 {
@@ -186,52 +162,66 @@ func main() {
 		os.Exit(0)
 	}
 
-	u := Client{Hash: *hash}
-	u.Activate(*host)           //Activate - return 0 as success
-	tL := GetTasks(*host, u.ID) //GetTask
+	u := Client{Hash: *hash}					//set client hash
+	u.Activate(*host)						//Activate
+	tL = GetTasks(*host, u.ID)					//GetTask
 
-	//	for i := range tL {				//debug
-	//		fmt.Printf("Id:%d  Interval:%d  Target:%s  Status:%t\n", tL[i].ID, tL[i].Interval, tL[i].Target, tL[i].Status)
-	//	}
+	cn := make(chan string, 10)					//channel length
 
-	cn := make(chan string, 10) //максимальная очередь задач
-
-	for { //основнной цикл должен быть бесконечным
-
-		for j := range tL { //цикл запуска горутин
-
-			if (fsec % tL[j].Interval) == 0 { //проверка интервала, если делится без остатка, то время пришло
-
-				//				fmt.Printf("Checking: %s - intr: %d\n", tL[j].Target, tL[j].Interval) //debug
-				ssec++
-				go tL[j].Check(cn)
+	for {								//eternal main loop 
+		for i := range tL {					//loop for start gorutine
+			if (fsec % tL[i].Interval) == 0 { 		//division without a remainder to find time of check
+				ssec++					//gorutine counter
+				go tL[i].Check(cn)			//Check
 			}
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(time.Second) 				//pause for closing gorutines
 
-		fstat := make([]Stat, ssec)
+		statArr := make([]Stat, ssec)
 
-		for j := 0; j < ssec; j++ { // сбор статусов по задачам
+		for j := 0; j < ssec; j++ { 				//read the channel 
 			select {
 			case res := <-cn:
-				//				fmt.Printf("Result: %s\n", res) 	//debug
-				fstat[j] = SetStat(res) //подготовка
+				tmp_Str := strings.Split(res, (" "))
+				tmp_Id, err := strconv.Atoi(tmp_Str[0])
+				CheckError(err)
+				tmp_St, err := strconv.ParseBool(tmp_Str[1])
+				CheckError(err)
+				for ii := range tL {
+					if tL[ii].ID == tmp_Id {
+						if tL[ii].Status != tmp_St {
+							tL[ii].Status = tmp_St
+							statArr[tsec] = Stat{ID: tmp_Id, Status: tmp_St}
+							tsec++
+						}
+					}
+				}
 			default:
-				//				fmt.Printf("Channel is empty\n")	//debug
+				fmt.Printf("Channel is empty\n")
 			}
 		}
-		//sendStat
-		if ssec != 0 { //если что либо проверялось то отправляем результат
-			SendStat(fstat, *host)
+		if tsec != 0 { 						//check 
+			SendStat(statArr, *host)
 		}
+		fmt.Printf("Stage №:%d - done\n", fsec + 1)		//debug
 
-		//		fmt.Printf("Проход №:%d выполнен!\n", fsec + 1)		//debug
+		tsec = 0
 		ssec = 0
+
 		if fsec != 59 {
 			fsec++
 		} else {
+			tmp_tL := tL
 			tL = GetTasks(*host, u.ID)
+			fmt.Printf("Set old statuses\n")
+			for jji := range tL {
+				for jj := range tmp_tL {
+					if tmp_tL[jj].ID == tL[jji].ID {
+						tL[jji].Status = tmp_tL[jj].Status
+					}
+				}
+			}
 			fsec = 0
 		}
 	}
