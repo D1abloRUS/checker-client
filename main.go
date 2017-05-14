@@ -8,8 +8,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 	"os"
 )
@@ -50,7 +48,7 @@ func (c *connection) Conn() (net.Conn, bool) {
 	return conn, errBool
 }
 
-func (t *Task) Check(cn chan string) {
+func (t *Task) Check(cn chan Stat) {
 	var (
 		tmpStatus bool
 	)
@@ -74,7 +72,7 @@ func (t *Task) Check(cn chan string) {
 		}
 	}
 	fmt.Printf("Check: ID:%d, Status:%t\n", t.ID, tmpStatus)
-	cn <- fmt.Sprintf("%d %t", t.ID, tmpStatus)
+	cn <- Stat{ID: t.ID, Status: tmpStatus}
 }
 
 func (c *Client) Activate(host string) bool {
@@ -123,7 +121,7 @@ func GetTasks(host string, id int) []Task {
 }
 
 func SendStat(s []Stat, host string) bool {
-//func SendStat(s map[int]Stat, host string) bool {
+
 	fjson := new(bytes.Buffer)
 	err := json.NewEncoder(fjson).Encode(s)
 	errBool := CheckError(err)
@@ -166,7 +164,7 @@ func main() {
 	u.Activate(*host)						//Activate
 	tL = GetTasks(*host, u.ID)					//GetTask
 
-	cn := make(chan string, 10)					//channel length
+	cn := make(chan Stat, 10)					//channel length
 
 	for {								//eternal main loop 
 		for i := range tL {					//loop for start gorutine
@@ -183,16 +181,11 @@ func main() {
 		for j := 0; j < ssec; j++ { 				//read the channel 
 			select {
 			case res := <-cn:
-				tmp_Str := strings.Split(res, (" "))
-				tmp_Id, err := strconv.Atoi(tmp_Str[0])
-				CheckError(err)
-				tmp_St, err := strconv.ParseBool(tmp_Str[1])
-				CheckError(err)
 				for ii := range tL {
-					if tL[ii].ID == tmp_Id {
-						if tL[ii].Status != tmp_St {
-							tL[ii].Status = tmp_St
-							statArr[tsec] = Stat{ID: tmp_Id, Status: tmp_St}
+					if tL[ii].ID == res.ID {
+						if tL[ii].Status != res.Status {
+							tL[ii].Status = res.Status
+							statArr[tsec] = res
 							tsec++
 						}
 					}
@@ -201,8 +194,12 @@ func main() {
 				fmt.Printf("Channel is empty\n")
 			}
 		}
-		if tsec != 0 { 						//check 
-			SendStat(statArr, *host)
+		if tsec != 0 { 						//check
+			statArrTmp := make([]Stat, tsec)
+			for jj := range statArrTmp {
+				statArrTmp[jj] = statArr[jj]
+			}	
+			SendStat(statArrTmp, *host)
 		}
 		fmt.Printf("Stage №:%d - done\n", fsec + 1)		//debug
 
@@ -215,10 +212,10 @@ func main() {
 			tmp_tL := tL
 			tL = GetTasks(*host, u.ID)
 			fmt.Printf("Set old statuses\n")
-			for jji := range tL {
-				for jj := range tmp_tL {
-					if tmp_tL[jj].ID == tL[jji].ID {
-						tL[jji].Status = tmp_tL[jj].Status
+			for iii := range tL {
+				for jjj := range tmp_tL {
+					if tmp_tL[jjj].ID == tL[iii].ID {
+						tL[iii].Status = tmp_tL[jjj].Status
 					}
 				}
 			}
