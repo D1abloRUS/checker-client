@@ -120,11 +120,10 @@ func GetTasks(host string, id int) []Task {
 	return t
 }
 
-func SendStat(s []Stat, host string) bool {
+func SendStat(s []Stat, host string) (errBool bool) {
 
 	fjson := new(bytes.Buffer)
-	err := json.NewEncoder(fjson).Encode(s)
-	errBool := CheckError(err)
+	errBool = CheckError(json.NewEncoder(fjson).Encode(s))
 	fmt.Printf("SendStat json: %v\n", fjson)	//debug
 
 	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/statusupdate", host), "application/json; charset=utf-8", fjson)
@@ -209,13 +208,13 @@ func main() {
 		if fsec != 59 {
 			fsec++
 		} else {
-			tmp_tL := tL
+			tmptL := tL
 			tL = GetTasks(*host, u.ID)
 			fmt.Printf("Set old statuses\n")
 			for iii := range tL {
-				for jjj := range tmp_tL {
-					if tmp_tL[jjj].ID == tL[iii].ID {
-						tL[iii].Status = tmp_tL[jjj].Status
+				for jjj := range tmptL {
+					if tmptL[jjj].ID == tL[iii].ID {
+						tL[iii].Status = tmptL[jjj].Status
 					}
 				}
 			}
