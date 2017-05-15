@@ -6,10 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
+	"net"
 	"time"
 	"os"
+//	"log"
 )
 
 type connection struct {
@@ -146,7 +147,7 @@ func main() {
 		fsec int 			//main loop timer
 		ssec int 			//gorutine counter
 		tsec int 			//answer counter
-		tL	[]Task
+		taskList []Task
 	)
 
 	flag.Parse()
@@ -161,15 +162,15 @@ func main() {
 
 	u := Client{Hash: *hash}					//set client hash
 	u.Activate(*host)						//Activate
-	tL = GetTasks(*host, u.ID)					//GetTask
+	taskList = GetTasks(*host, u.ID)				//GetTask
 
 	cn := make(chan Stat, 10)					//channel length
 
 	for {								//eternal main loop 
-		for i := range tL {					//loop for start gorutine
-			if (fsec % tL[i].Interval) == 0 { 		//division without a remainder to find time of check
+		for i := range taskList {				//loop for start gorutine
+			if (fsec % taskList[i].Interval) == 0 { 	//division without a remainder to find time of check
 				ssec++					//gorutine counter
-				go tL[i].Check(cn)			//Check
+				go taskList[i].Check(cn)		//Check host
 			}
 		}
 
@@ -180,23 +181,23 @@ func main() {
 		for j := 0; j < ssec; j++ { 				//read the channel 
 			select {
 			case res := <-cn:
-				for ii := range tL {
-					if tL[ii].ID == res.ID {
-						if tL[ii].Status != res.Status {
-							tL[ii].Status = res.Status
+				for k := range taskList {
+					if taskList[k].ID == res.ID {	//check normal answer
+						if taskList[k].Status != res.Status {
+							taskList[k].Status = res.Status
 							statArr[tsec] = res
 							tsec++
 						}
 					}
 				}
 			default:
-				fmt.Printf("Channel is empty\n")
+				fmt.Printf("Channel is empty\n")	//debug
 			}
 		}
-		if tsec != 0 { 						//check
+		if tsec != 0 { 						//check avalible answers
 			statArrTmp := make([]Stat, tsec)
-			for jj := range statArrTmp {
-				statArrTmp[jj] = statArr[jj]
+			for l := range statArrTmp {
+				statArrTmp[l] = statArr[l]
 			}	
 			SendStat(statArrTmp, *host)
 		}
@@ -205,16 +206,16 @@ func main() {
 		tsec = 0
 		ssec = 0
 
-		if fsec != 59 {
+		if fsec != 59 {						//check main loop counter for restart loop
 			fsec++
 		} else {
-			tmptL := tL
-			tL = GetTasks(*host, u.ID)
-			fmt.Printf("Set old statuses\n")
-			for iii := range tL {
-				for jjj := range tmptL {
-					if tmptL[jjj].ID == tL[iii].ID {
-						tL[iii].Status = tmptL[jjj].Status
+			tmpTaskList := taskList
+			taskList = GetTasks(*host, u.ID)
+			fmt.Printf("Set old statuses\n")		//debug
+			for f := range taskList {
+				for h := range tmpTaskList {
+					if tmpTaskList[h].ID == taskList[f].ID {
+						taskList[f].Status = tmpTaskList[h].Status
 					}
 				}
 			}
