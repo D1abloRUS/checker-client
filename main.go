@@ -77,7 +77,8 @@ func (t *Task) Check(cn chan Stat) {
 
 func (c *Client) Activate(host string) {
 	b := new(bytes.Buffer)
-	CheckError(json.NewEncoder(b).Encode(c))
+	err := json.NewEncoder(b).Encode(c)
+	CheckError(err)
 	log.Printf("Json send: %s", b)			//debug, do not use \n with json
 
 	//Тут хардкод url api
@@ -89,7 +90,8 @@ func (c *Client) Activate(host string) {
 		os.Exit(1)
 	}
 
-	CheckError(json.NewDecoder(res.Body).Decode(&c))
+	err = json.NewDecoder(res.Body).Decode(&c)
+	CheckError(err)
 	json.NewEncoder(b).Encode(c)			//debug
 	log.Printf("Json recive: %s", b)		//debug, do not use \n with json
 }
@@ -115,7 +117,8 @@ func GetTasks(host string, id int) []Task {
 
 func SendStat(s []Stat, host string) {
 	bjson := new(bytes.Buffer)
-	CheckError(json.NewEncoder(bjson).Encode(s))
+	err := json.NewEncoder(bjson).Encode(s)
+	CheckError(err)
 	log.Printf("Status json sending: %v", bjson)	//debug, do not use \n with json
 
 	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/statusupdate", host), "application/json; charset=utf-8", bjson)
