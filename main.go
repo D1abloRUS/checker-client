@@ -10,7 +10,7 @@ import (
 	"net"
 	"time"
 	"os"
-//	"log"
+	"log"
 )
 
 type connection struct {
@@ -39,14 +39,13 @@ func CheckError(err error) bool {
 	if err == nil {
 		return false
 	}
-	fmt.Printf("error: %s\n", err)
+	log.Printf("Error: %s\n", err)
 	return true
 }
 
 func (c *connection) Conn() (net.Conn, bool) {
 	conn, err := net.DialTimeout(c.protocol, c.address, 250*time.Millisecond)
-	errBool := CheckError(err)
-	return conn, errBool
+	return conn, CheckError(err)
 }
 
 func (t *Task) Check(cn chan Stat) {
@@ -55,7 +54,7 @@ func (t *Task) Check(cn chan Stat) {
 	)
 
 	c := connection{
-		protocol: "tcp", // захардкожено потому что http(s)
+		protocol: "tcp", // hardcode because http(s)
 		address:  t.Target,
 	}
 
@@ -72,30 +71,27 @@ func (t *Task) Check(cn chan Stat) {
 			conn.Close()
 		}
 	}
-	fmt.Printf("Check: ID:%d, Status:%t\n", t.ID, tmpStatus)
+	log.Printf("Check: ID:%d, Status:%t\n", t.ID, tmpStatus) //debug
 	cn <- Stat{ID: t.ID, Status: tmpStatus}
 }
 
-func (c *Client) Activate(host string) bool {
+func (c *Client) Activate(host string) {
 	b := new(bytes.Buffer)
-	err := json.NewEncoder(b).Encode(c)
-	errBool := CheckError(err)
-	fmt.Printf("json in epta: %s\n", b)		//debugg
+	CheckError(json.NewEncoder(b).Encode(c))
+	log.Printf("Json send: %s", b)			//debug, do not use \n with json
 
 	//Тут хардкод url api
 	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/activate", host), "application/json; charset=utf-8", b)
-	errBool = CheckError(err)
 	if err == nil {
 		defer res.Body.Close()
 	} else {
+		CheckError(err)
 		os.Exit(1)
 	}
 
-	err = json.NewDecoder(res.Body).Decode(&c)
-	errBool = CheckError(err)
+	CheckError(json.NewDecoder(res.Body).Decode(&c))
 	json.NewEncoder(b).Encode(c)			//debug
-	fmt.Printf("json out epta: %s\n", b)		//debug
-	return errBool
+	log.Printf("Json recive: %s", b)		//debug, do not use \n with json
 }
 
 func GetTasks(host string, id int) []Task {
@@ -109,34 +105,27 @@ func GetTasks(host string, id int) []Task {
 	res, err := ioutil.ReadAll(r.Body)
 	CheckError(err)
 
-	fmt.Printf("Getting task: %s\n", res)		//debug
+	log.Printf("Getting task: %s", res)		//debug, do not use \n with json
 
 	err = json.Unmarshal(res, &t)
 	CheckError(err)
 
-	for i := range t {				//debug
-		fmt.Printf("%d :%d : %d : %s : %t\n", i, t[i].ID, t[i].Interval, t[i].Target, t[i].Status)
-	}
-
 	return t
 }
 
-func SendStat(s []Stat, host string) (errBool bool) {
+func SendStat(s []Stat, host string) {
+	bjson := new(bytes.Buffer)
+	CheckError(json.NewEncoder(bjson).Encode(s))
+	log.Printf("Status json sending: %v", bjson)	//debug, do not use \n with json
 
-	fjson := new(bytes.Buffer)
-	errBool = CheckError(json.NewEncoder(fjson).Encode(s))
-	fmt.Printf("SendStat json: %v\n", fjson)	//debug
-
-	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/statusupdate", host), "application/json; charset=utf-8", fjson)
-	errBool = CheckError(err)
+	res, err := http.Post(fmt.Sprintf("https://%s/api/v1/statusupdate", host), "application/json; charset=utf-8", bjson)
 	if err == nil {
 		defer res.Body.Close()
-		fmt.Printf("Status is push\n")		//debug
+		log.Printf("Status json is send\n")	//debug
 	} else {
+		CheckError(err)
 		os.Exit(1)
 	}
-
-	return errBool
 }
 
 func main() {
@@ -191,7 +180,7 @@ func main() {
 					}
 				}
 			default:
-				fmt.Printf("Channel is empty\n")	//debug
+				log.Printf("Channel is empty\n")	//debug
 			}
 		}
 		if tsec != 0 { 						//check avalible answers
@@ -201,7 +190,7 @@ func main() {
 			}	
 			SendStat(statArrTmp, *host)
 		}
-		fmt.Printf("Stage №:%d - done\n", fsec + 1)		//debug
+		log.Printf("Stage №:%d - done\n", fsec + 1)		//debug
 
 		tsec = 0
 		ssec = 0
@@ -211,7 +200,7 @@ func main() {
 		} else {
 			tmpTaskList := taskList
 			taskList = GetTasks(*host, u.ID)
-			fmt.Printf("Set old statuses\n")		//debug
+			log.Printf("Set previous statuses\n")		//debug
 			for f := range taskList {
 				for h := range tmpTaskList {
 					if tmpTaskList[h].ID == taskList[f].ID {
